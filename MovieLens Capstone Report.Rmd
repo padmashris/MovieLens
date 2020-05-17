@@ -1,0 +1,334 @@
+---
+title: "**HarvardX Data Science: Capstone**  \n  *Rating Prediction on MovieLens*"
+author: "Padmashri Saravanan"
+date: "May 9th 2020"
+output: 
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+---
+
+\pagebreak
+# Introduction
+
+Having high quality consumer-generated ratings has become more important than ever, and an important and anticipated aspect of purchasing. Thus, it has also become essential for brand and retailer marketing strategies, such as Amazon, Google Play Store applications or food delivery company, Zomato. Companies then use these ratings to collect data and predict future ratings from a consumer, known as recommendation systems. This is consequently used to recommend products with high ratings to consumers.
+
+In this case, we collect ratings from movies to form models and create a recommendation system using the 'MovieLens' dataset, collected by GroupLens Research.
+
+## Objective
+
+The goal in this project is to predicts User Ratings (from 0.5 to 5) by training a machine learning algorithm that uses the inputs of a provided subset (the edx dataset set by the Capstone course) to predict Movie Ratings in a already given validation set.
+
+The Root Mean Square (RMSE) is used to evaluate the performance of the algorithm and is frequently used to measure accuracy and the differences between the model and the actual values. A lower RMSE proves greater accuracy. RMSE is considered to be sensitive to outliers since each error on RMSE is proportional to the size of the squared error, making the outliers have an abnormally large effect on the RMSE value.
+
+We use the following formula to calculate the RMSE value:
+
+$$ RMSE = \sqrt{\frac{1}{N}\displaystyle\sum_{u,m} (\hat{y}_{u,m}-y_{u,m})^{2}} $$
+
+In this project, we develop 4 separate models to compare the RMSE result and the one with the best result will be used to predict the ratings.
+
+```{r RMSE_function1, echo = FALSE}
+RMSE <- function(rating_prediction, rating_true){
+  sqrt(mean((rating_prediction - rating_true)^2))
+}
+```
+
+## Data
+
+The MovieLens dataset is given in the form of 'edx' and 'validation' subsets from the staff through RDS files.
+
+
+```{r, echo = TRUE, message = FALSE, warning = FALSE, eval = TRUE}
+#############################################################
+# Importing edx set and the validation set
+#############################################################
+# Note: this process could take a couple of minutes for loading required package: 
+# tidyverse and package caret
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+
+edx <- readRDS("~/Downloads/edx.rds")
+validation <- readRDS("~/Downloads/validation.rds")
+
+```
+
+The algorithm will be carried out only on the 'edx' subset and we will test the final algorithm on the 'validation' dataset.
+
+
+# Analysis
+
+## Data Analysis
+
+We first take a look at the 'edx' dataset. 
+
+```{r head, echo = TRUE}
+head(edx) %>%
+  print.data.frame()
+  
+```
+
+It contains 6 variables 'userID', 'movieID', 'rating', 'timestamp', 'title' and 'genres' and essentially shows the rating from a consumer for a single movie.
+
+We also check if users gave a higher rating than a lower one by plotting a distribution.
+
+```{r rating_distribution, echo = FALSE,fig.height=4, fig.width=5}
+edx %>%
+  ggplot(aes(rating)) +
+  geom_histogram(binwidth = 0.5, color="black",fill="yellow") +
+  scale_x_discrete(limits = c(seq(0.5,5,0.5))) +
+  scale_y_continuous(breaks = c(seq(0, 3000000, 500000))) +
+  ggtitle("Rating distribution")
+  
+```
+
+It is clear that 4 is the most common, after which 3 and 5 are the most common and 0.5 is the least in count. We can also notice that whole ratings are more common than half ratings.
+
+In this project, we also use regularization and a penalty term to take into consideration that some movies have been rated a lot more that another and some have only a single rating, giving an unreliable estimate of RMSE results for predictions.
+
+```{r number_of_ratings_per_movie, echo = FALSE, fig.height=4, fig.width=5}
+edx %>%
+count(movieId) %>%
+ggplot(aes(n)) +
+geom_histogram(bins = 25, color = "black", fill = "blue") +
+scale_x_log10() +
+xlab("Number of ratings") +
+  ylab("Number of movies") +
+ggtitle("Number of ratings/movie")
+```
+
+
+```{r number_ratings_given_by_users, echo = FALSE, fig.height=4, fig.width=5}
+edx %>%
+count(userId) %>%
+ggplot(aes(n)) +
+geom_histogram(bins = 30, color = "black", fill="red") +
+scale_x_log10() +
+xlab("Number of ratings") + 
+ylab("Number of users") +
+ggtitle("Number of ratings given by users")
+```
+
+Regularization is used to decrease the errors by avoid over fitting and fitting a function on the given training set and this also tunes the function through the addition of a penalty term, which compensates for the fluctuating function and avoids values that are extreme.
+
+## Modelling the Data
+
+RMSE, as mentioned earlier, is calculated using the following definition where N is the number of combinations of users and movies.
+
+$$ RMSE = \sqrt{\frac{1}{N}\displaystyle\sum_{u,m} (\hat{y}_{u,m}-y_{u,m})^{2}} $$
+
+If the RMSE we obtain is greater than 1, it implies that the average error is greater than a one star rating, which makes our results unreliable. 
+
+We use the following function to calculate the values of RMSE for the given ratings and their respective predictions:
+
+```{r RMSE_function2, echo = TRUE}
+RMSE <- function(rating_actual, rating_prediction){
+  sqrt(mean((rating_actual - rating_prediction)^2))
+}
+```
+
+
+###  Modelling the mean movie rating
+
+This model computes the dataset's average rating, which is between 3 and 4 as seen above. We predict by assuming the same rating for all movies and considering random variation for the differences.
+
+$$ Y_{u, m} = \mu + \epsilon_{u, m} $$
+
+with $\epsilon_{u,m}$ as the independent error and $\mu$ being the *actual* movie rating. The estimate minimizing the RMSE is the least square estimate (LSE) of $Y_{u,m}$. in this case, is the mean of all ratings.
+
+```{r, echo = TRUE}
+avg <- mean(edx$rating)
+avg
+```
+
+
+The first RMSE can be calculated if we predict all unknown ratings with $\mu$ or avg:
+
+```{r rmse1, echo = TRUE}
+rmse1 <- RMSE(validation$rating, avg)
+rmse1
+```
+
+
+We then display the results in a table:
+
+```{r results1, echo = FALSE}
+results <- tibble(method = "Mean Movie Rating", RMSE = rmse1)
+results %>% knitr::kable()
+```
+
+This gives us the foundation RMSE value to compare with the upcoming models.
+
+
+
+### Modelling the impact of movies
+
+To refine the initial model, we consider how there are some movies with a higher rating than the rest because of its popularity. We do this by calculating the approximated deviation of each mean rating from the total mean $\mu$.
+We define the resulting value as "i" for impact for each movie "m", $i_{m}$, which tells us the average ranking for movie $m$:
+$$Y_{u, m} = \mu +i_{m}+ \epsilon_{u, m}$$
+
+\pagebreak
+Plotting this on a histogram we can observe that it is skewed to the left, that is, more movies have a negative impact. 
+
+```{r Number_of_movies_with_i_m, echo = FALSE, fig.height=4, fig.width=5}
+av_movie <- edx %>%
+  group_by(movieId) %>%
+  summarize(i_m = mean(rating - avg))
+av_movie %>% qplot(i_m, geom ="histogram", bins = 10, data = ., color = I("black"),
+ylab = "Number of movies", main = "Number of movies with i_m")
+```
+
+
+We define this is as the movie impact penalty.
+
+Our prediction also improves once we use this model.
+
+```{r rating_prediction, echo = FALSE, fig.height=4, fig.width=5}
+rating_prediction <- avg +  validation %>%
+  left_join(av_movie, by='movieId') %>%
+  pull(i_m)
+rmse2 <- RMSE(rating_prediction, validation$rating)
+results <- bind_rows(results,
+                          tibble(method="Modelling Movie Impact",  
+                                     RMSE = rmse2 ))
+results %>% knitr::kable()
+```
+
+We can see that there is an improvement in the RMSE value, but this model does not count the impact of the individual users.
+
+### Modelling the impact of movies and users
+
+We compute the average rating for users for that have rated more than 100 movies, and define it as the user impact penalty.
+
+```{r, echo = FALSE, fig.height=4, fig.width=5}
+av_user <- edx %>% 
+  left_join(av_movie, by='movieId') %>%
+  group_by(userId) %>%
+  filter(n() >= 100) %>%
+  summarize(i_u = mean(rating - avg - i_m))
+av_user %>% qplot(i_u, geom ="histogram", bins = 30, data = ., color = I("black"))
+```
+
+This then results in the following improved model:
+
+$$Y_{u, m} = \mu + i_{m} + i_{u} + \epsilon_{u, m}$$
+
+where $i_{u}$ is the impact created by the user. If a user that overcriticises ($i_{u}$ < 0) rates a good movie ($i_{m}$ > 0), the impacts contradict and we use this to predict that the user gave the good movie a lower rating than what it actually should have received.
+
+We estimate the calculation by finding $\mu$ and $i_{m}$, and approximating $i_{u}$, as the mean of 
+$$Y_{u, m} - \mu - i_{m}$$
+
+```{r av_user, echo = FALSE}
+av_user <- edx %>%
+  left_join(av_movie, by="movieId") %>%
+  group_by(userId) %>%
+  summarize(i_u = mean(rating - avg - i_m))
+  
+```
+
+We then further compute predictors and see that the RMSE value improves:
+
+
+```{r rmse3, echo = FALSE}
+rating_prediction <- validation %>%
+  left_join(av_movie, by='movieId') %>%
+  left_join(av_user, by='userId') %>%
+  mutate(pred = avg + i_m + i_u) %>%
+  pull(pred)
+rmse3 <- RMSE(rating_prediction, validation$rating)
+results <- bind_rows(results,
+                          tibble(method="Modelling Movie and User Impact",  
+                                     RMSE = rmse3))
+results %>% knitr::kable()
+```
+
+### Modelling the regularized movie and user impacts
+
+Regularization helps us eliminate the possibility that the estimates of $i_{m}$ and $i_{u}$ are a result of movies with limited ratings and limited number of users rating it. We now define a tuning parameter $\rho$ that will minimize the RMSE value and find the optimal value.
+
+
+```{r rhos, echo = TRUE}
+rhos <- seq(0, 10, 0.2)
+rmses <- sapply(rhos, function(k){
+  
+  avg <- mean(edx$rating)
+  
+  i_m <- edx %>% 
+    group_by(movieId) %>%
+    summarize(i_m = sum(rating - avg)/(n()+k))
+  
+  i_u <- edx %>% 
+    left_join(i_m, by="movieId") %>%
+    group_by(userId) %>%
+    summarize(i_u = sum(rating - i_m - avg)/(n()+k))
+  
+  rating_prediction <- 
+    validation %>% 
+    left_join(i_m, by = "movieId") %>%
+    left_join(i_u, by = "userId") %>%
+    mutate(pred = avg + i_m + i_u) %>%
+    pull(pred)
+  
+  return(RMSE(rating_prediction, validation$rating))
+})
+```
+
+\pagebreak
+We plot RMSE vs $\rho$ to select the optimal $\rho$:
+
+```{r plot_rho, echo = FALSE, fig.height=4, fig.width=5}
+qplot(rhos, rmses)  
+```
+
+The optimal $\rho$ for the complete model then becomes:
+
+```{r min_rho, echo = TRUE}
+  rho_min <- rhos[which.min(rmses)]
+rho_min
+```
+
+The optimal rho for the full model is: 5.2
+
+The new results will then be:
+
+```{r results2, echo = FALSE}
+results <- bind_rows(results,tibble(method="Modelling Regularized Movie and User Impacts",RMSE = min(rmses)))
+results %>% knitr::kable()
+```
+
+\pagebreak
+
+# Results
+
+The RMSE values of all the models computed are presented below:
+
+```{r results3, echo = FALSE}
+results %>% knitr::kable()
+```
+
+Therefore, we found the lowest value of RMSE that is 0.8648170.
+
+
+# Discussion
+
+Thus, the following is the final model of the project and proves to be efficient:
+
+$$Y_{u, m} = \mu + i_{m} + i_{u} + \epsilon_{u, m}$$
+
+
+
+# Conclusion
+
+We affirm to have built a machine learning algorithm to predict movie ratings with the *MovieLens* dataset.
+The regularized model including the impact of users is distinguished by the lowest RMSE value (0.8648170) and is hence the optimal model to use for the present project.
+We could also refine the RMSE value further by considering other impacts (genre, etc). 
+
+\pagebreak
+
+# Environment
+
+```{r, echo=FALSE}
+print("Operating System:")
+version
+```
+

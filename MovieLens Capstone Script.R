@@ -40,6 +40,12 @@ av_user <- edx %>% #calculating the average user ratings
   group_by(userId) %>%
   summarize(i_u = mean(rating - avg - i_m))
 
+av_movie <- edx %>% # calculating the average movie ratings
+  group_by(movieId) %>%
+  summarize(i_m = mean(rating - avg))
+av_movie %>% qplot(i_m, geom ="histogram", bins = 10, data = ., color = I("black"),
+ylab = "Number of movies", main = "Number of movies with i_m")
+
 rating_prediction <- validation %>% #modelling the impact of users and movies
   left_join(av_movie, by='movieId') %>%
   left_join(av_user, by='userId') %>%

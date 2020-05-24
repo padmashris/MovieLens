@@ -1,2 +1,3 @@
 # MovieLens
-Contains the files for the MovieLens project
+Having high quality consumer-grenerated ratings has become more important than ever, and an important and anticipated aspect of purchasing. Thus, it has also become essential for brand and retailer marketing strategies, such as Amazon, Google Play Store applications or food delivery company, Zomato. Companies then use these ratings to collect data and predict future ratings from a consumer, known as recommendation systems. This is consequently used to recommend products with high ratings to consumers.
+In this case, we collect ratings from movies to form models and create a recommendation system using the ‘MovieLens’ dataset, collected by GroupLens Research.
